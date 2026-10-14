@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team Vanity — расписание матчей</title>
+<meta name="description" content="Расписание матчей Team Vanity по CS2">
+<link rel="icon" href="logo.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #000;
+    --fg: #fff;
+    --muted: #8a8a8a;
+    --line: #262626;
+    --card: #0b0b0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "Inter", system-ui, sans-serif;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+
+  header { text-align: center; padding: 56px 0 32px; }
+  header img { width: 140px; height: 140px; object-fit: contain; }
+  h1 {
+    font-family: "Oswald", sans-serif;
+    font-weight: 700;
+    font-size: clamp(36px, 9vw, 64px);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 12px;
+  }
+  .tag { color: var(--muted); letter-spacing: 0.2em; text-transform: uppercase; font-size: 13px; }
+
+  h2 {
+    font-family: "Oswald", sans-serif;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 18px;
+    margin: 40px 0 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  h2::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+  /* Next match */
+  .next {
+    border: 1px solid var(--fg);
+    padding: 28px 20px;
+    text-align: center;
+  }
+  .vs {
+    font-family: "Oswald", sans-serif;
+    font-size: clamp(24px, 6vw, 36px);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .vs span { color: var(--muted); margin: 0 10px; }
+  .meta { color: var(--muted); margin-top: 8px; font-size: 15px; }
+  .countdown { display: flex; justify-content: center; gap: 12px; margin: 24px 0; }
+  .countdown div { min-width: 64px; }
+  .countdown b { display: block; font-family: "Oswald", sans-serif; font-size: 36px; font-weight: 500; }
+  .countdown small { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; }
+  .btn {
+    display: inline-block;
+    background: var(--fg); color: var(--bg);
+    text-decoration: none; font-weight: 600;
+    padding: 12px 24px; text-transform: uppercase; letter-spacing: 0.1em; font-size: 13px;
+  }
+  .btn:hover { opacity: 0.85; }
+  .live { color: var(--fg); font-family: "Oswald", sans-serif; font-size: 22px; letter-spacing: 0.15em; margin: 20px 0; }
+
+  /* Match list */
+  .match {
+    display: grid;
+    grid-template-columns: 92px 1fr auto;
+    gap: 16px; align-items: center;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .when b { display: block; font-family: "Oswald", sans-serif; font-size: 20px; font-weight: 500; }
+  .when small { color: var(--muted); font-size: 13px; }
+  .who { font-weight: 600; }
+  .who small { display: block; color: var(--muted); font-weight: 400; font-size: 13px; }
+  .right a { color: var(--fg); font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; }
+  .score { font-family: "Oswald", sans-serif; font-size: 20px; }
+  .empty { color: var(--muted); padding: 16px 0; }
+
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 56px 0 32px; }
+
+  @media (max-width: 480px) {
+    .match { grid-template-columns: 72px 1fr; }
+    .right { grid-column: 2; }
+    .countdown { gap: 6px; }
+    .countdown div { min-width: 52px; }
+    .countdown b { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img src="logo.jpg" alt="Логотип Team Vanity">
+    <h1>Team Vanity</h1>
+    <p class="tag">CS2 · FACEIT</p>
+  </header>
+
+  <h2>Ближайший матч</h2>
+  <section id="next" class="next"><p class="empty">Загрузка…</p></section>
+
+  <h2>Расписание</h2>
+  <section id="upcoming"></section>
+
+  <h2>Сыгранные матчи</h2>
+  <section id="past"></section>
+
+  <footer>Время указано по Москве</footer>
+</div>
+
+<script>
+const TZ = "Europe/Moscow";
+const fmtDate = d => new Intl.DateTimeFormat("ru-RU", { timeZone: TZ, day: "numeric", month: "short" }).format(d).replace(".", "");
+const fmtTime = d => new Intl.DateTimeFormat("ru-RU", { timeZone: TZ, hour: "2-digit", minute: "2-digit" }).format(d);
+const fmtFull = d => new Intl.DateTimeFormat("ru-RU", { timeZone: TZ, weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }).format(d);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const MATCH_LENGTH = 2 * 60 * 60 * 1000; // матч считается идущим 2 часа после начала
+
+function row(m, past) {
+  const d = new Date(m.date);
+  const right = past && m.score
+    ? `<span class="score">${esc(m.score)}</span>`
+    : (m.link ? `<a href="${esc(m.link)}" target="_blank" rel="noopener">Матч ↗</a>` : "");
+  return `<div class="match">
+    <div class="when"><b>${fmtDate(d)}</b><small>${fmtTime(d)}</small></div>
+    <div class="who">vs ${esc(m.opponent)}<small>${esc(m.tournament)}${m.format ? " · " + esc(m.format) : ""}</small></div>
+    <div class="right">${right}</div>
+  </div>`;
+}
+
+function renderNext(m) {
+  const el = document.getElementById("next");
+  if (!m) { el.innerHTML = `<p class="empty">Новых матчей пока нет</p>`; return; }
+  const d = new Date(m.date);
+  el.innerHTML = `
+    <div class="vs">Team Vanity <span>vs</span> ${esc(m.opponent)}</div>
+    <p class="meta">${esc(m.tournament)}${m.format ? " · " + esc(m.format) : ""}</p>
+    <p class="meta">${fmtFull(d)}</p>
+    <div id="cd"></div>
+    ${m.link ? `<a class="btn" href="${esc(m.link)}" target="_blank" rel="noopener">Открыть на FACEIT</a>` : ""}`;
+  const cd = document.getElementById("cd");
+  const tick = () => {
+    const diff = d - Date.now();
+    if (diff <= 0) { cd.innerHTML = `<p class="live">● Матч идёт</p>`; return; }
+    const s = Math.floor(diff / 1000);
+    const parts = [[Math.floor(s / 86400), "дн"], [Math.floor(s / 3600) % 24, "ч"], [Math.floor(s / 60) % 60, "мин"], [s % 60, "сек"]];
+    cd.innerHTML = `<div class="countdown">${parts.map(([v, l]) => `<div><b>${String(v).padStart(2, "0")}</b><small>${l}</small></div>`).join("")}</div>`;
+  };
+  tick();
+  setInterval(tick, 1000);
+}
+
+fetch("matches.json", { cache: "no-store" })
+  .then(r => r.json())
+  .then(list => {
+    const now = Date.now();
+    list.sort((a, b) => new Date(a.date) - new Date(b.date));
+    const upcoming = list.filter(m => new Date(m.date).getTime() + MATCH_LENGTH > now);
+    const past = list.filter(m => new Date(m.date).getTime() + MATCH_LENGTH <= now).reverse();
+    renderNext(upcoming[0]);
+    document.getElementById("upcoming").innerHTML = upcoming.length
+      ? upcoming.map(m => row(m, false)).join("")
+      : `<p class="empty">Матчей не запланировано</p>`;
+    document.getElementById("past").innerHTML = past.length
+      ? past.map(m => row(m, true)).join("")
+      : `<p class="empty">Пока нет сыгранных матчей</p>`;
+  })
+  .catch(() => {
+    document.getElementById("next").innerHTML = `<p class="empty">Не удалось загрузить расписание</p>`;
+  });
+</script>
+</body>
+</html>
